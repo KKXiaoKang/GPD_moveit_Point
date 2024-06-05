@@ -37,8 +37,19 @@ apt-cache search openvino
 # 更新安装
 sudo apt install openvino-2024.1.0
 ```
+## 更新scipy
+```bash
+pip install --upgrade scipy
+```
 
 ## start
 ```bash
 catkin_make
+```
+
+## run
+```bash
+roslaunch realsense2_camera rs_camera.launch filters:=pointcloud
+
+roslaunch gpd tutorial1.launch
 ```
