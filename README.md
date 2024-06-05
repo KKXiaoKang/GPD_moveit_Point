@@ -50,7 +50,18 @@ catkin_make
 
 ## run
 ```bash
-roslaunch realsense2_camera rs_camera.launch filters:=pointcloud
+# 启动带深度点云的分辨率realsense相机
+roslaunch kuavo_robot_ros sensor_robot_enable.launch
 
+# 启动yolo目标检测节点(结果基于camera_link坐标系)
+rosrun kuavo_vision_object realsense_yolo_segment_ros.py 
+
+# 根据yolo目标检测的结果 获取待抓取物体的ROI点云（根据boundingbox推理结果取待抓取的点云）
+rosrun kuavo_yolo_point2d point_cloud_bounding_node.py
+
+# 启动GPD抓取姿态检测节点
 roslaunch gpd tutorial1.launch
+
+# 启动抓取姿态转换为实际抓取pose和orientation的节点
+rosrun kuavo_robot_ros grasp_pose_converter.py
 ```
