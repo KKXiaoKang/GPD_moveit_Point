@@ -2,6 +2,7 @@
 a simple demo
 
 * you can find how to use gpd in [ROS workspace to get start](https://blog.csdn.net/Eeko_x/article/details/104835154)
+* 该仓库主要用于GPD生成抓取姿态检测的ROS流接口，支持转换为待抓取的物体的点云数据。
 
 ## install gpg 
 ```bash
