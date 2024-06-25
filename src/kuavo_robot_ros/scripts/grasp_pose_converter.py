@@ -5,9 +5,10 @@
 """
 import rospy
 from gpd.msg import GraspConfigList
-from geometry_msgs.msg import PoseArray, Pose
+from geometry_msgs.msg import PoseArray, Pose, TransformStamped
 from scipy.spatial.transform import Rotation as R
 import numpy as np
+import tf2_ros
 
 def vector_to_array(vector):
     return np.array([vector.x, vector.y, vector.z])
@@ -16,7 +17,7 @@ def grasp_callback(grasp_msg):
     poses = PoseArray()
     poses.header = grasp_msg.header
 
-    for grasp in grasp_msg.grasps:
+    for i, grasp in enumerate(grasp_msg.grasps):
         approach = vector_to_array(grasp.approach)
         binormal = vector_to_array(grasp.binormal)
         axis = vector_to_array(grasp.axis)
@@ -41,6 +42,22 @@ def grasp_callback(grasp_msg):
         # 添加到PoseArray
         poses.poses.append(pose)
 
+        # 创建并发布TransformStamped
+        transform = TransformStamped()
+        transform.header.stamp = rospy.Time.now()
+        transform.header.frame_id = 'camera_link'  # 假设抓取姿态是相对于"world"坐标系的，可以根据实际情况修改
+        transform.child_frame_id = f'grasp_{i}'  # 每个抓取姿态都有唯一的frame_id
+        transform.transform.translation.x = grasp.surface.z
+        transform.transform.translation.y = grasp.surface.y
+        transform.transform.translation.z = grasp.surface.x
+        transform.transform.rotation.x = quaternion[0]
+        transform.transform.rotation.y = quaternion[1]
+        transform.transform.rotation.z = quaternion[2]
+        transform.transform.rotation.w = quaternion[3]
+        
+        # 发布变换
+        tf_broadcaster.sendTransform(transform)
+
     # 发布PoseArray
     pub.publish(poses)
 
@@ -52,5 +69,8 @@ if __name__ == '__main__':
     
     # 发布新的话题，使用PoseArray来表示多个抓取姿态
     pub = rospy.Publisher('/grasp_poses', PoseArray, queue_size=10)
+    
+    # 初始化tf2的TransformBroadcaster
+    tf_broadcaster = tf2_ros.TransformBroadcaster()
     
     rospy.spin()
