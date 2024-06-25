@@ -17,6 +17,11 @@ def grasp_callback(grasp_msg):
     poses = PoseArray()
     poses.header = grasp_msg.header
 
+    # 定义从物体坐标系到世界坐标系的旋转矩阵
+    R_obj_to_world = np.array([[0, 0, 1], 
+                               [1, 0, 0], 
+                               [0, 1, 0]])
+
     for i, grasp in enumerate(grasp_msg.grasps):
         approach = vector_to_array(grasp.approach)
         binormal = vector_to_array(grasp.binormal)
@@ -25,15 +30,18 @@ def grasp_callback(grasp_msg):
         # 构建旋转矩阵
         rotation_matrix = np.vstack([approach, binormal, axis]).T
 
+        # 转换为世界坐标系的旋转矩阵
+        rotation_matrix_world = R_obj_to_world @ rotation_matrix
+
         # 转换为四元数
-        rotation = R.from_matrix(rotation_matrix)
+        rotation = R.from_matrix(rotation_matrix_world)
         quaternion = rotation.as_quat()
 
         # 创建Pose消息
         pose = Pose()
-        pose.position.x = grasp.surface.x
+        pose.position.x = grasp.surface.z
         pose.position.y = grasp.surface.y
-        pose.position.z = grasp.surface.z
+        pose.position.z = grasp.surface.x
         pose.orientation.x = quaternion[0]
         pose.orientation.y = quaternion[1]
         pose.orientation.z = quaternion[2]
@@ -54,7 +62,7 @@ def grasp_callback(grasp_msg):
         transform.transform.rotation.y = quaternion[1]
         transform.transform.rotation.z = quaternion[2]
         transform.transform.rotation.w = quaternion[3]
-        
+
         # 发布变换
         tf_broadcaster.sendTransform(transform)
 
