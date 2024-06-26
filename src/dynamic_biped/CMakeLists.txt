@@ -223,6 +223,5 @@ install(DIRECTORY launch
 
 catkin_install_python(PROGRAMS
   scripts/loundspeaker.py
-  scripts/grasp_pose_converter.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
