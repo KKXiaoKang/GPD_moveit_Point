@@ -145,7 +145,8 @@ def process_frame(yoloseg, input_image, depth_image, camera_info):
     detection_msg.header.stamp = rospy.Time.now()
     detection_msg.header.frame_id = "head_camera_color_optical_frame"
 
-    for box, score, class_id in zip(boxes, scores, class_ids):
+    mask_msgs = []
+    for box, score, class_id, mask in zip(boxes, scores, class_ids, masks):
         if class_id not in interested_classes:
             continue  # 忽略不感兴趣的类别
 
@@ -175,7 +176,7 @@ def process_frame(yoloseg, input_image, depth_image, camera_info):
                 detection.results[0].pose.pose.orientation.y = 0.0 
                 detection.results[0].pose.pose.orientation.z = 0.0 
                 detection.results[0].pose.pose.orientation.w = 1.0 
-            else:          # 如果深度无效，则将数值全赋值为0
+            else:  # 如果深度无效，则将数值全赋值为0
                 detection.results[0].pose.pose.position.x = 0
                 detection.results[0].pose.pose.position.y = 0
                 detection.results[0].pose.pose.position.z = 0
@@ -191,9 +192,19 @@ def process_frame(yoloseg, input_image, depth_image, camera_info):
 
         detection_msg.detections.append(detection)
 
-    return combined_img, detection_msg
+        # 转换mask为ROS Image消息并添加到mask_msgs列表中
+        try:
+            # 将mask转换为8位单通道图像
+            mask_8u = cv2.convertScaleAbs(mask, alpha=(255.0/np.max(mask)))
+            mask_msg = bridge.cv2_to_imgmsg(mask_8u, "mono8")
+            mask_msgs.append(mask_msg)
+        except CvBridgeError as e:
+            rospy.logerr(f"Failed to convert mask image: {e}")
 
-def process_frames(yoloseg, executor, pub, image_pub, tf_broadcaster):
+    return combined_img, detection_msg, mask_msgs
+
+# 持续处理帧并发布检测结果
+def process_frames(yoloseg, executor, pub, image_pub, mask_pub, tf_broadcaster):
     global color_image, depth_image, combined_img, camera_info
     while not rospy.is_shutdown():
         if color_image is None or depth_image is None or camera_info is None:
@@ -204,7 +215,7 @@ def process_frames(yoloseg, executor, pub, image_pub, tf_broadcaster):
 
         # 使用线程池进行处理
         future = executor.submit(process_frame, yoloseg, input_image, input_depth_image, camera_info)
-        combined_img, detection_msg = future.result()
+        combined_img, detection_msg, mask_msgs = future.result()
 
         # 发布Detection2DArray消息
         pub.publish(detection_msg)
@@ -216,17 +227,23 @@ def process_frames(yoloseg, executor, pub, image_pub, tf_broadcaster):
         except CvBridgeError as e:
             rospy.logerr(f"Failed to convert and publish image: {e}")
 
+        # 发布mask消息
+        for mask_msg in mask_msgs:
+            mask_pub.publish(mask_msg)
+
         # 广播目标检测结果的 TF 转换
         broadcast_tf_transforms(detection_msg, tf_broadcaster)
 
         time.sleep(0.01)  # 模拟处理时间
 
+# 主函数
 def main():
     rospy.init_node('yolo_detection_node')
 
     # 创建发布者
     pub = rospy.Publisher('/object_yolo_segment_result', Detection2DArray, queue_size=10)
     image_pub = rospy.Publisher('/object_yolo_segment_image', Image, queue_size=10)
+    mask_pub = rospy.Publisher('/object_yolo_segment_mask', Image, queue_size=10)  # 新增mask发布者
 
     # 创建订阅者
     rospy.Subscriber('/camera/color/image_raw', Image, image_callback)
@@ -244,7 +261,7 @@ def main():
     tf_broadcaster = tf2_ros.TransformBroadcaster()
 
     # 启动处理线程
-    thread2 = threading.Thread(target=process_frames, args=(yoloseg, executor, pub, image_pub, tf_broadcaster))
+    thread2 = threading.Thread(target=process_frames, args=(yoloseg, executor, pub, image_pub, mask_pub, tf_broadcaster))
 
     # 设置守护线程，确保主线程退出时子线程也退出
     thread2.daemon = True
