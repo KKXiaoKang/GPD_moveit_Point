@@ -2,6 +2,16 @@
 """
     brief: 监听/detect_grasps/clustered_grasps的四个最佳抓取姿态，并转换为PoseArray消息发布到/grasp_poses话题
     将四个最佳抓取姿态转换为PoseArray，里面包含了position和orientation:
+
+    基于camera_link坐标系的最优抓取pose
+    pose = Pose()
+    pose.position.x = grasp.surface.z
+    pose.position.y = grasp.surface.y
+    pose.position.z = grasp.surface.x
+    pose.orientation.x = quaternion[0]
+    pose.orientation.y = quaternion[1]
+    pose.orientation.z = quaternion[2]
+    pose.orientation.w = quaternion[3]
 """
 import rospy
 from gpd.msg import GraspConfigList
@@ -9,6 +19,7 @@ from geometry_msgs.msg import PoseArray, Pose, TransformStamped
 from scipy.spatial.transform import Rotation as R
 import numpy as np
 import tf2_ros
+import tf2_geometry_msgs
 
 def vector_to_array(vector):
     return np.array([vector.x, vector.y, vector.z])
@@ -22,6 +33,7 @@ def grasp_callback(grasp_msg):
                                [1, 0, 0], 
                                [0, 1, 0]])
 
+    # 遍历每个抓取姿态 将其转换至 camera_link坐标系
     for i, grasp in enumerate(grasp_msg.grasps):
         approach = vector_to_array(grasp.approach)
         binormal = vector_to_array(grasp.binormal)
@@ -76,7 +88,7 @@ if __name__ == '__main__':
     rospy.Subscriber('/detect_grasps/clustered_grasps', GraspConfigList, grasp_callback)
     
     # 发布新的话题，使用PoseArray来表示多个抓取姿态
-    pub = rospy.Publisher('/grasp_poses', PoseArray, queue_size=10)
+    pub = rospy.Publisher('/camera_link/grasp_poses', PoseArray, queue_size=10)
     
     # 初始化tf2的TransformBroadcaster
     tf_broadcaster = tf2_ros.TransformBroadcaster()
