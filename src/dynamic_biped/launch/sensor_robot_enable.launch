@@ -17,4 +17,6 @@
         <arg name="align_depth"   value="true"/>
         <arg name="enable_pointcloud"   value="true"/>
     </include>
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="camera_to_real_frame" args="0 0 0 0 0 0 head_camera camera_link" />
 </launch>
