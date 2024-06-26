@@ -56,8 +56,10 @@ roslaunch dynamic_biped sensor_robot_enable.launch
 # 启动yolo目标检测节点(结果基于camera_link坐标系)
 rosrun kuavo_vision_object realsense_yolo_segment_ros.py 
 
-# 根据yolo目标检测的结果 获取待抓取物体的ROI点云（根据boundingbox推理结果取待抓取的点云）
+# (二选一，默认选mask)根据yolo目标检测的结果 获取待抓取物体的ROI点云（根据boundingbox 推理结果取待抓取的点云）
 rosrun kuavo_yolo_point2d point_cloud_bounding_node.py
+# (二选一，默认选mask)根据yolo目标检测的结果 获取待抓取物体的ROI点云（根据mask像素值范围 推理结果取待抓取的点云）
+rosrun kuavo_yolo_point2d point_cloud_mask_node.py
 
 # 启动GPD抓取姿态检测节点
 roslaunch gpd tutorial1.launch
