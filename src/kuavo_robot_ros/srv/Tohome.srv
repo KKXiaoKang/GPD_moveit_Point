@@ -1,4 +1,0 @@
-int8 tag_id
-bool start_flag
----
-bool end_flag

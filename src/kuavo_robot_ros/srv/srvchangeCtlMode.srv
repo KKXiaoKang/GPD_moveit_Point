@@ -1,4 +1,0 @@
-uint8 masterID
-uint8 control_mode
----
-uint8 control_mode
