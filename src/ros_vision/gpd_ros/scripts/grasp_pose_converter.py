@@ -12,21 +12,21 @@ def grasp_config_to_pose(grasp_config):
     pose = Pose()
     
     # 设置位置
-    pose.position.x = grasp_config.bottom.x
+    pose.position.x = grasp_config.bottom.x 
     pose.position.y = grasp_config.bottom.y
-    pose.position.z = grasp_config.bottom.z
+    pose.position.z = grasp_config.bottom.z  # 反转 Z 轴方向
     
     # 计算方向（四元数）
     # 将抓取方向（approach）设为Z轴，法线（binormal）设为Y轴，轴线（axis）设为X轴
-    approach = [grasp_config.approach.x, grasp_config.approach.y, grasp_config.approach.z]
-    binormal = [grasp_config.binormal.x, grasp_config.binormal.y, grasp_config.binormal.z]
-    axis = [grasp_config.axis.x, grasp_config.axis.y, grasp_config.axis.z]
+    approach = np.array([grasp_config.approach.x, grasp_config.approach.y, grasp_config.approach.z])
+    binormal = np.array([grasp_config.binormal.x, grasp_config.binormal.y, grasp_config.binormal.z])
+    axis = np.array([grasp_config.axis.x, grasp_config.axis.y, grasp_config.axis.z])
 
     # 创建一个4x4的变换矩阵
     rotation_matrix = np.eye(4)
     rotation_matrix[0:3, 0] = axis    # X轴
     rotation_matrix[0:3, 1] = binormal # Y轴
-    rotation_matrix[0:3, 2] = approach # Z轴
+    rotation_matrix[0:3, 2] = approach # 反转 Z 轴方向
 
     # 计算四元数，并确保是单位四元数
     quaternion = tf_trans.quaternion_from_matrix(rotation_matrix)
