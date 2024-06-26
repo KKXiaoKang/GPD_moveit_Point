@@ -221,6 +221,7 @@ install(DIRECTORY launch
 # catkin_add_nosetests(test)
 catkin_install_python(PROGRAMS
   scripts/point_cloud_bounding_node.py
+  scripts/point_cloud_mask_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
