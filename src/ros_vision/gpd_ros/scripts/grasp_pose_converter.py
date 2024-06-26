@@ -1,96 +1,75 @@
 #!/usr/bin/env python
-"""
-    brief: 监听/detect_grasps/clustered_grasps的四个最佳抓取姿态，并转换为PoseArray消息发布到/grasp_poses话题
-    将四个最佳抓取姿态转换为PoseArray，里面包含了position和orientation:
 
-    基于camera_link坐标系的最优抓取pose
+import rospy
+from gpd.msg import GraspConfigList
+from geometry_msgs.msg import Pose, PoseArray, TransformStamped
+import tf
+import tf2_ros
+import numpy as np
+import tf.transformations as tf_trans
+
+def grasp_config_to_pose(grasp_config):
     pose = Pose()
-    pose.position.x = grasp.surface.z
-    pose.position.y = grasp.surface.y
-    pose.position.z = grasp.surface.x
+    
+    # 设置位置
+    pose.position.x = grasp_config.bottom.x
+    pose.position.y = grasp_config.bottom.y
+    pose.position.z = grasp_config.bottom.z
+    
+    # 计算方向（四元数）
+    # 将抓取方向（approach）设为Z轴，法线（binormal）设为Y轴，轴线（axis）设为X轴
+    approach = [grasp_config.approach.x, grasp_config.approach.y, grasp_config.approach.z]
+    binormal = [grasp_config.binormal.x, grasp_config.binormal.y, grasp_config.binormal.z]
+    axis = [grasp_config.axis.x, grasp_config.axis.y, grasp_config.axis.z]
+
+    # 创建一个4x4的变换矩阵
+    rotation_matrix = np.eye(4)
+    rotation_matrix[0:3, 0] = axis    # X轴
+    rotation_matrix[0:3, 1] = binormal # Y轴
+    rotation_matrix[0:3, 2] = approach # Z轴
+
+    # 计算四元数，并确保是单位四元数
+    quaternion = tf_trans.quaternion_from_matrix(rotation_matrix)
+    quaternion = tf_trans.unit_vector(quaternion)
+    
     pose.orientation.x = quaternion[0]
     pose.orientation.y = quaternion[1]
     pose.orientation.z = quaternion[2]
     pose.orientation.w = quaternion[3]
-"""
-import rospy
-from gpd.msg import GraspConfigList
-from geometry_msgs.msg import PoseArray, Pose, TransformStamped
-from scipy.spatial.transform import Rotation as R
-import numpy as np
-import tf2_ros
-import tf2_geometry_msgs
+    
+    return pose
 
-def vector_to_array(vector):
-    return np.array([vector.x, vector.y, vector.z])
-
-def grasp_callback(grasp_msg):
-    poses = PoseArray()
-    poses.header = grasp_msg.header
-
-    # 定义从物体坐标系到世界坐标系的旋转矩阵
-    R_obj_to_world = np.array([[0, 0, 1], 
-                               [1, 0, 0], 
-                               [0, 1, 0]])
-
-    # 遍历每个抓取姿态 将其转换至 camera_link坐标系
-    for i, grasp in enumerate(grasp_msg.grasps):
-        approach = vector_to_array(grasp.approach)
-        binormal = vector_to_array(grasp.binormal)
-        axis = vector_to_array(grasp.axis)
-
-        # 构建旋转矩阵
-        rotation_matrix = np.vstack([approach, binormal, axis]).T
-
-        # 转换为世界坐标系的旋转矩阵
-        rotation_matrix_world = R_obj_to_world @ rotation_matrix
-
-        # 转换为四元数
-        rotation = R.from_matrix(rotation_matrix_world)
-        quaternion = rotation.as_quat()
-
-        # 创建Pose消息
-        pose = Pose()
-        pose.position.x = grasp.surface.z
-        pose.position.y = grasp.surface.y
-        pose.position.z = grasp.surface.x
-        pose.orientation.x = quaternion[0]
-        pose.orientation.y = quaternion[1]
-        pose.orientation.z = quaternion[2]
-        pose.orientation.w = quaternion[3]
-
-        # 添加到PoseArray
-        poses.poses.append(pose)
-
+def callback(grasp_config_list):
+    pose_array = PoseArray()
+    pose_array.header = grasp_config_list.header
+    
+    for i, grasp_config in enumerate(grasp_config_list.grasps):
+        pose = grasp_config_to_pose(grasp_config)
+        pose_array.poses.append(pose)
+        
         # 创建并发布TransformStamped
-        transform = TransformStamped()
-        transform.header.stamp = rospy.Time.now()
-        transform.header.frame_id = 'camera_link'  # 假设抓取姿态是相对于"world"坐标系的，可以根据实际情况修改
-        transform.child_frame_id = f'grasp_{i}'  # 每个抓取姿态都有唯一的frame_id
-        transform.transform.translation.x = grasp.surface.z
-        transform.transform.translation.y = grasp.surface.y
-        transform.transform.translation.z = grasp.surface.x
-        transform.transform.rotation.x = quaternion[0]
-        transform.transform.rotation.y = quaternion[1]
-        transform.transform.rotation.z = quaternion[2]
-        transform.transform.rotation.w = quaternion[3]
-
-        # 发布变换
-        tf_broadcaster.sendTransform(transform)
-
-    # 发布PoseArray
-    pub.publish(poses)
+        transform_stamped = TransformStamped()
+        transform_stamped.header.stamp = rospy.Time.now()
+        transform_stamped.header.frame_id = 'camera_link'
+        transform_stamped.child_frame_id = f'grasp_{i}'
+        transform_stamped.transform.translation.x = pose.position.x
+        transform_stamped.transform.translation.y = pose.position.y
+        transform_stamped.transform.translation.z = pose.position.z
+        transform_stamped.transform.rotation.x = pose.orientation.x
+        transform_stamped.transform.rotation.y = pose.orientation.y
+        transform_stamped.transform.rotation.z = pose.orientation.z
+        transform_stamped.transform.rotation.w = pose.orientation.w
+        
+        tf_broadcaster.sendTransform(transform_stamped)
+    
+    pose_pub.publish(pose_array)
 
 if __name__ == '__main__':
-    rospy.init_node('grasp_pose_converter', anonymous=True)
+    rospy.init_node('grasp_to_pose_converter')
     
-    # 订阅/detect_grasps/clustered_grasps
-    rospy.Subscriber('/detect_grasps/clustered_grasps', GraspConfigList, grasp_callback)
+    grasp_sub = rospy.Subscriber('/detect_grasps/clustered_grasps', GraspConfigList, callback)
+    pose_pub = rospy.Publisher('/camera_link/grasp_poses', PoseArray, queue_size=10)
     
-    # 发布新的话题，使用PoseArray来表示多个抓取姿态
-    pub = rospy.Publisher('/camera_link/grasp_poses', PoseArray, queue_size=10)
-    
-    # 初始化tf2的TransformBroadcaster
     tf_broadcaster = tf2_ros.TransformBroadcaster()
     
     rospy.spin()
