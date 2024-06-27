@@ -5,6 +5,8 @@ from geometry_msgs.msg import PoseArray, PoseStamped
 from geometry_msgs.msg import PoseArray, Pose, TransformStamped
 import tf2_ros
 import tf2_geometry_msgs
+import tf.transformations as tf_trans
+import numpy as np
 
 def pose_array_callback(msg):
     # 初始化 tf2 监听器和广播器
@@ -19,6 +21,10 @@ def pose_array_callback(msg):
         rospy.logerr(f"获取变换失败: {e}")
         return
 
+    # 定义坐标系旋转，以将相机坐标系转换为机器人的世界坐标系
+    # rot_quat = tf_trans.quaternion_from_euler(0, 0, 0)  # 根据实际夹爪的形态具体需求调整
+    rot_quat = tf_trans.quaternion_from_euler(-1.5708, 0, -1.5708) # 正确的夹爪范围，
+
     # 转换 PoseArray 中的每个姿态从 camera_link 到 torso 坐标系
     transformed_poses = []
     count = 0 # 计数器
@@ -29,6 +35,20 @@ def pose_array_callback(msg):
         try:
             # 执行姿态转换
             transformed_pose = tf2_geometry_msgs.do_transform_pose(pose_stamped, transform)
+
+            # 应用额外旋转
+            orig_quat = [
+                transformed_pose.pose.orientation.x,
+                transformed_pose.pose.orientation.y,
+                transformed_pose.pose.orientation.z,
+                transformed_pose.pose.orientation.w,
+            ]
+            new_quat = tf_trans.quaternion_multiply(rot_quat, orig_quat)
+            transformed_pose.pose.orientation.x = new_quat[0]
+            transformed_pose.pose.orientation.y = new_quat[1]
+            transformed_pose.pose.orientation.z = new_quat[2]
+            transformed_pose.pose.orientation.w = new_quat[3]
+
             transformed_poses.append(transformed_pose.pose)
 
             # 创建并发布 TransformStamped 到 TF 树中
@@ -48,7 +68,7 @@ def pose_array_callback(msg):
         except (tf2_ros.TransformException, tf2_geometry_msgs.TransformException) as e:
             rospy.logerr(f"姿态转换失败: {e}")
 
-        count +=1
+        count += 1
     
     # 发布转换后的姿态作为 PoseArray 到 torso 坐标系
     transformed_pose_array = PoseArray()
