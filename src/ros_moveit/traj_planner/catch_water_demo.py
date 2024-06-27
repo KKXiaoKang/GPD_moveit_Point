@@ -139,51 +139,53 @@ def grasp_poses_callback(msg):
     if not msg.poses:
         rospy.logwarn("No poses in message.")
         return
-    
-    # 提取PoseArray中的第一个pose
-    pose = msg.poses[0]
-    x = pose.position.x
-    y = pose.position.y
-    z = pose.position.z  
 
-    target_pose_stamped = PoseStamped()
-    target_pose_stamped.header.frame_id = "torso"
-    target_pose_stamped.pose.position.x = x
-    target_pose_stamped.pose.position.y = (y + Y_TO_MOVEIT_OFFSET)
-    target_pose_stamped.pose.position.z = z
+    for i, pose in enumerate(msg.poses[:5]):  # 只取前5个pose
+        x = pose.position.x
+        y = pose.position.y
+        z = pose.position.z  
 
-    target_pose_stamped.pose.orientation = pose.orientation
-    
-    # 设置规划的初始点
-    now_joint_state = joint_state.position
-    print("=====================================================")
-    print(" now_joint_state : ", now_joint_state)
-    print("=====================================================")
+        target_pose_stamped = PoseStamped()
+        target_pose_stamped.header.frame_id = "torso"
+        target_pose_stamped.pose.position.x = x
+        target_pose_stamped.pose.position.y = (y + Y_TO_MOVEIT_OFFSET)
+        target_pose_stamped.pose.position.z = z
 
-    # 规划
-    planner.set_start_state(now_joint_state)
-    traj = planner.plan_to_target_pose(target_pose_stamped)
+        target_pose_stamped.pose.orientation = pose.orientation
 
-    # 发布
-    if traj:
-        if not IF_NEW_FLAG:
-            publisher.start_auto_publish()
-            IF_NEW_FLAG = True
-        print(" object traj success ! --- now is {0} traj ---".format(trajectory_counter))
-        logger.dump_traj(traj, file_name="test1_moveit_point")
-        trajectory_counter += 1  # 增加计数器
-        Failed_count = 0         # 失败计数器清0
-        # 执行 等待rviz执行结果
-        executor.execute_traj(traj, wait=True)
+        # 逆运动学求解
+        joint_angles = calculate_inverse_kinematics(target_pose_stamped)
+        if joint_angles is not None:
+            rospy.loginfo("Inverse kinematics succeeded for pose %d", i)
+            # 设置规划的初始点
+            now_joint_state = joint_state.position
+            print("=====================================================")
+            print(" now_joint_state : ", now_joint_state)
+            print("=====================================================")
 
-        # 加入等待
-        time.sleep(3)
-    else:
-        rospy.logerr("Failed to plan trajectory")
-        Failed_count += 1
-        if Failed_count < 2:
-            publisher.stop_auto_publish()
-            IF_NEW_FLAG = False
+            # 规划
+            planner.set_start_state(now_joint_state)
+            traj = planner.plan_to_target_pose(target_pose_stamped)
+
+            # 发布
+            if traj:
+                if not IF_NEW_FLAG:
+                    publisher.start_auto_publish()
+                    IF_NEW_FLAG = True
+                print(" object traj success ! --- now is {0} traj ---".format(trajectory_counter))
+                logger.dump_traj(traj, file_name="test1_moveit_point")
+                trajectory_counter += 1  # 增加计数器
+                Failed_count = 0         # 失败计数器清0
+                # 执行 等待rviz执行结果
+                executor.execute_traj(traj, wait=True)
+
+                # 加入等待
+                time.sleep(3)
+                break  # 成功规划后跳出循环，不再继续检查其他pose
+            else:
+                rospy.logerr("Failed to plan trajectory")
+        else:
+            rospy.logwarn("Inverse kinematics failed for pose %d", i)
 
     # 计数器
     if trajectory_counter >= MAX_TRAJECTORY_COUNT:
@@ -241,6 +243,7 @@ def grasp_poses_callback(msg):
         # ------------------- 结束 -------------------------
         rospy.loginfo("Planned 3 successful trajectories, shutting down...")
         rospy.signal_shutdown("Trajectory count limit reached")
+
 
 def joint_callback(data):
     # 提取左手关节角度
