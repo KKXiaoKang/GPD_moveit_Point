@@ -26,9 +26,11 @@ def grasp_config_to_pose(grasp_config):
     rotation_matrix = np.eye(4)
     rotation_matrix[0:3, 0] = axis    # X轴
     rotation_matrix[0:3, 1] = binormal # Y轴
-    rotation_matrix[0:3, 2] = approach # 反转 Z 轴方向
+    rotation_matrix[0:3, 2] = approach # Z轴
 
-    # 计算四元数，并确保是单位四元数
+    rospy.loginfo(f"Rotation Matrix: \n{rotation_matrix}")
+
+    # 计算四元数
     quaternion = tf_trans.quaternion_from_matrix(rotation_matrix)
     quaternion = tf_trans.unit_vector(quaternion)
     
@@ -50,7 +52,7 @@ def callback(grasp_config_list):
         # 创建并发布TransformStamped
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = rospy.Time.now()
-        transform_stamped.header.frame_id = 'camera_link'
+        transform_stamped.header.frame_id = 'camera_color_optical_frame'
         transform_stamped.child_frame_id = f'grasp_{i}'
         transform_stamped.transform.translation.x = pose.position.x
         transform_stamped.transform.translation.y = pose.position.y

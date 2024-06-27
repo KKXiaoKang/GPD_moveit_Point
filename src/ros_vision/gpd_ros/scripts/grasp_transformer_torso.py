@@ -14,7 +14,7 @@ def pose_array_callback(msg):
 
     # 等待从 camera_link 到 torso 的变换
     try:
-        transform = tf_buffer.lookup_transform('torso', 'camera_link', rospy.Time(), rospy.Duration(1.0))
+        transform = tf_buffer.lookup_transform('torso', 'camera_color_optical_frame', rospy.Time(), rospy.Duration(1.0))
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
         rospy.logerr(f"获取变换失败: {e}")
         return
