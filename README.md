@@ -64,6 +64,12 @@ rosrun kuavo_yolo_point2d point_cloud_mask_node.py
 # 启动GPD抓取姿态检测节点
 roslaunch gpd tutorial1.launch
 
-# 启动抓取姿态转换为实际抓取pose和orientation的节点
-rosrun dynamic_biped grasp_pose_converter.py
+# 启动moveit规划器 发布全身关节TF以及进行后续规划
+roslaunch kuavo40_moveit_config demo.launch
+
+# 启动抓取姿态转换为实际抓取pose和orientation的节点（基于camera_link坐标系）
+rosrun gpd_ros grasp_pose_converter.py
+
+# 启动抓取姿态转换为torso坐标系的节点
+rosrun gpd_ros grasp_transformer_torso.py
 ```
