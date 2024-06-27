@@ -185,6 +185,9 @@ def grasp_poses_callback(msg):
 
     # 计数器
     if trajectory_counter >= MAX_TRAJECTORY_COUNT:
+        if IF_NEW_FLAG == False: # 如果最后几次grasp规划失败了，需要重新开启publisher进行发布
+            publisher.start_auto_publish()
+        
         time.sleep(5)
         # ------------------- 抓取服务 -------------------
         # 打开虎口
